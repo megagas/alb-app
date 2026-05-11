@@ -93,10 +93,10 @@ const handleConnect = async (walletKey: string) => {
     if (existingWallet && existingWallet !== address) {
       // มี wallet เดิม และต่างกัน → เตือน
       const confirmed = window.confirm(
-        `⚠️ คุณเคยใช้กระเป๋า:\n${existingWallet.slice(0, 20)}...\n\n` +
-        `กระเป๋าใหม่:\n${address.slice(0, 20)}...\n\n` +
-        `หากเปลี่ยน คุณจะไม่เห็น contract จากกระเป๋าเดิม\nต้องการเปลี่ยนหรือไม่?`
-      )
+  `⚠️ You previously used wallet:\n${existingWallet.slice(0, 20)}...\n\n` +
+  `New wallet:\n${address.slice(0, 20)}...\n\n` +
+  `If you switch, you will not see contracts from your old wallet.\nProceed?`
+)
       if (!confirmed) {
         setConnecting(false)
         return
