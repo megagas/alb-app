@@ -66,10 +66,10 @@ export default function Dashboard() {
   }, [walletAddress])
 
   useEffect(() => {
-  if (walletAddress && user) {
-    checkAndSaveWallet()
-  }
-}, [walletAddress, user])
+    if (walletAddress && user) {
+      checkAndSaveWallet()
+    }
+  }, [walletAddress, user])
 
   const loadContracts = async () => {
     setLoadingContracts(true)
@@ -96,7 +96,7 @@ export default function Dashboard() {
       const existingWallet = userData?.wallet_address
 
       if (existingWallet && existingWallet !== address) {
-        setPendingWallet({ api, address, key: walletKey })
+        setPendingWallet({ api, address: existingWallet, key: walletKey })
         setConnecting(false)
         return
       }
@@ -116,39 +116,36 @@ export default function Dashboard() {
   }
 
   const checkAndSaveWallet = async () => {
-  const { data: userData } = await supabase
-    .from('users')
-    .select('wallet_address')
-    .eq('email', user.email)
-    .single()
+    const { data: userData } = await supabase
+      .from('users')
+      .select('wallet_address')
+      .eq('email', user.email)
+      .single()
 
-  const existingWallet = userData?.wallet_address
+    const existingWallet = userData?.wallet_address
 
-  if (existingWallet && existingWallet !== walletAddress) {
     if (existingWallet && existingWallet !== walletAddress) {
       setPendingWallet({ 
         api: walletApi, 
-        address: existingWallet,  // เปลี่ยนตรงนี้
+        address: existingWallet,
         key: walletName || '' 
       })
       return
     }
-    return
-  }
 
-  await supabase
-    .from('users')
-    .update({ wallet_address: walletAddress })
-    .eq('email', user.email)
-}
+    await supabase
+      .from('users')
+      .update({ wallet_address: walletAddress })
+      .eq('email', user.email)
+  }
 
   const handleConfirmSwitch = async () => {
     if (!pendingWallet) return
     await supabase
       .from('users')
-      .update({ wallet_address: pendingWallet.address })
+      .update({ wallet_address: walletAddress })
       .eq('email', user.email)
-    setWallet(pendingWallet.api, pendingWallet.address, pendingWallet.key)
+    setWallet(pendingWallet.api, walletAddress!, pendingWallet.key)
     setPendingWallet(null)
   }
 
@@ -161,13 +158,11 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
 
-      {/* Modal เตือนเปลี่ยน wallet */}
       {pendingWallet && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
             <div className="text-2xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold mb-2">Switch Wallet?</h2>
-            
             <p className="text-white/50 text-sm mb-2">Previously used:</p>
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-3 break-all">
               {pendingWallet.address.slice(0, 30)}...
@@ -179,7 +174,6 @@ export default function Dashboard() {
             <p className="text-white/50 text-sm mb-6">
               If you switch, you will not see contracts from your old wallet.
             </p>
-
             <div className="flex gap-3">
               <button
                 onClick={() => setPendingWallet(null)}
