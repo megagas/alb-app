@@ -20,7 +20,7 @@ function formatDate(date: Date): string {
 
 function daysUntil(date: Date): number {
   const now = new Date()
-  return Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  return Math.floor((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 export default function Dashboard() {
