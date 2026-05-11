@@ -37,6 +37,8 @@ export default function Dashboard() {
   const [checkinCustomMonths, setCheckinCustomMonths] = useState<number>(0)
   const [checkinUseCustom, setCheckinUseCustom] = useState(false)
   const [checkinLoading, setCheckinLoading] = useState(false)
+  const [checkinTxCbor, setCheckinTxCbor] = useState<string | null>(null)
+  const [checkinNewDeadlineSlot, setCheckinNewDeadlineSlot] = useState<string | null>(null)
 
   const router = useRouter()
   const { walletApi, walletAddress, walletName, setWallet } = useWalletContext()
@@ -161,6 +163,8 @@ export default function Dashboard() {
     setCheckinContract(contract)
     setCheckinCustomMonths(contract.checkin_interval_months)
     setCheckinUseCustom(false)
+    setCheckinTxCbor(null)
+    setCheckinNewDeadlineSlot(null)
     setCheckinStep('choose')
   }
 
@@ -168,20 +172,15 @@ export default function Dashboard() {
     setCheckinContract(null)
     setCheckinStep(null)
     setCheckinUseCustom(false)
+    setCheckinTxCbor(null)
+    setCheckinNewDeadlineSlot(null)
   }
 
-  const getNewDeadline = () => {
-    const months = checkinUseCustom ? checkinCustomMonths : checkinContract?.checkin_interval_months
-    const oldDeadline = slotToDate(Number(checkinContract?.deadline_slot))
-    oldDeadline.setMonth(oldDeadline.getMonth() + months)
-    return oldDeadline
-  }
-
-  const handleCheckinConfirm = async () => {
-    if (!checkinContract || !walletApi) return
+  const handleGoToReview = async (useCustom: boolean) => {
+    if (!checkinContract) return
     setCheckinLoading(true)
     try {
-      const months = checkinUseCustom ? checkinCustomMonths : checkinContract.checkin_interval_months
+      const months = useCustom ? checkinCustomMonths : checkinContract.checkin_interval_months
 
       const res = await fetch('https://alb-deploy-production.up.railway.app/checkin', {
         method: 'POST',
@@ -197,29 +196,45 @@ export default function Dashboard() {
       const { txCbor, newDeadlineSlot, error } = await res.json()
       if (error) throw new Error(error)
 
-      const signedTx = await walletApi.signTx(txCbor, true)
+      setCheckinTxCbor(txCbor)
+      setCheckinNewDeadlineSlot(newDeadlineSlot)
+      setCheckinUseCustom(useCustom)
+      setCheckinStep('review')
+    } catch (e: any) {
+      alert(`Failed to prepare check-in: ${e.message}`)
+    } finally {
+      setCheckinLoading(false)
+    }
+  }
+
+  const handleCheckinConfirm = async () => {
+    if (!checkinContract || !walletApi || !checkinTxCbor || !checkinNewDeadlineSlot) return
+    setCheckinLoading(true)
+    try {
+      const months = checkinUseCustom ? checkinCustomMonths : checkinContract.checkin_interval_months
+
+      const signedTx = await walletApi.signTx(checkinTxCbor, true)
 
       const submitRes = await fetch('https://alb-deploy-production.up.railway.app/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
+        body: JSON.stringify({ txCbor: checkinTxCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
       })
 
       const { txHash, error: submitError } = await submitRes.json()
       if (submitError) throw new Error(submitError)
 
-      // Update Supabase
       await supabase
         .from('contracts')
         .update({
-          deadline_slot: newDeadlineSlot,
+          deadline_slot: checkinNewDeadlineSlot,
           checkin_interval_months: months,
           tx_hash: txHash,
         })
         .eq('id', checkinContract.id)
 
       closeCheckin()
-      await loadContracts()  // เพิ่ม await
+      await loadContracts()
       alert(`✅ Check-in successful! TxHash: ${txHash}`)
 
     } catch (e: any) {
@@ -292,12 +307,14 @@ export default function Dashboard() {
                 </p>
                 <div className="flex gap-3 mb-4">
                   <button
-                    onClick={() => { setCheckinUseCustom(false); setCheckinStep('review') }}
-                    className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition">
-                    Same interval ({checkinContract.checkin_interval_months}m)
+                    onClick={() => handleGoToReview(false)}
+                    disabled={checkinLoading}
+                    className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition">
+                    {checkinLoading ? 'Loading...' : `Same interval (${checkinContract.checkin_interval_months}m)`}
                   </button>
                   <button
                     onClick={() => setCheckinUseCustom(true)}
+                    disabled={checkinLoading}
                     className={`flex-1 py-3 rounded-xl text-sm font-medium transition ${
                       checkinUseCustom ? 'bg-blue-500 text-white' : 'bg-white/5 hover:bg-white/10 text-white/60'
                     }`}>
@@ -322,15 +339,17 @@ export default function Dashboard() {
                       ))}
                     </div>
                     <button
-                      onClick={() => setCheckinStep('review')}
-                      className="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition mt-2">
-                      Next → Review
+                      onClick={() => handleGoToReview(true)}
+                      disabled={checkinLoading}
+                      className="w-full bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition mt-2">
+                      {checkinLoading ? 'Loading...' : 'Next → Review'}
                     </button>
                   </div>
                 )}
 
                 <button
                   onClick={closeCheckin}
+                  disabled={checkinLoading}
                   className="w-full bg-white/5 hover:bg-white/10 text-white/60 py-3 rounded-xl text-sm transition">
                   Cancel
                 </button>
@@ -352,7 +371,11 @@ export default function Dashboard() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-white/40">New deadline</span>
-                    <span className="text-green-400">{formatDate(getNewDeadline())}</span>
+                    <span className="text-green-400">
+                      {checkinNewDeadlineSlot 
+                        ? formatDate(slotToDate(Number(checkinNewDeadlineSlot)))
+                        : '-'}
+                    </span>
                   </div>
                 </div>
                 <div className="flex gap-3">
