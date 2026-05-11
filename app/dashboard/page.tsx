@@ -172,9 +172,9 @@ export default function Dashboard() {
 
   const getNewDeadline = () => {
     const months = checkinUseCustom ? checkinCustomMonths : checkinContract?.checkin_interval_months
-    const now = new Date()
-    now.setMonth(now.getMonth() + months)
-    return now
+    const oldDeadline = slotToDate(Number(checkinContract?.deadline_slot))
+    oldDeadline.setMonth(oldDeadline.getMonth() + months)
+    return oldDeadline
   }
 
   const handleCheckinConfirm = async () => {
