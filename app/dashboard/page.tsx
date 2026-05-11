@@ -109,7 +109,8 @@ const handleConnect = async (walletKey: string) => {
     // Save wallet_address ลง Supabase
     await supabase
       .from('users')
-      .upsert({ id: user.id, wallet_address: address })
+      .update({ wallet_address: address })
+      .eq('email', user.email)
 
     setWallet(api, address, walletKey)
   } catch (e) {
