@@ -125,7 +125,14 @@ export default function Dashboard() {
   const existingWallet = userData?.wallet_address
 
   if (existingWallet && existingWallet !== walletAddress) {
-    setPendingWallet({ api: walletApi, address: walletAddress!, key: walletName || '' })
+    if (existingWallet && existingWallet !== walletAddress) {
+      setPendingWallet({ 
+        api: walletApi, 
+        address: existingWallet,  // เปลี่ยนตรงนี้
+        key: walletName || '' 
+      })
+      return
+    }
     return
   }
 
