@@ -89,6 +89,9 @@ const handleConnect = async (walletKey: string) => {
       .single()
 
     const existingWallet = userData?.wallet_address
+    console.log('existing:', existingWallet)
+    console.log('new:', address)
+    console.log('match:', existingWallet === address)
 
     if (existingWallet && existingWallet !== address) {
       // มี wallet เดิม และต่างกัน → เตือน
