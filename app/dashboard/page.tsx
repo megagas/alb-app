@@ -65,6 +65,12 @@ export default function Dashboard() {
     }
   }, [walletAddress])
 
+  useEffect(() => {
+  if (walletAddress && user) {
+    checkAndSaveWallet()
+  }
+}, [walletAddress, user])
+
   const loadContracts = async () => {
     setLoadingContracts(true)
     const { data } = await supabase
@@ -108,6 +114,26 @@ export default function Dashboard() {
       setConnecting(false)
     }
   }
+
+  const checkAndSaveWallet = async () => {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('wallet_address')
+    .eq('email', user.email)
+    .single()
+
+  const existingWallet = userData?.wallet_address
+
+  if (existingWallet && existingWallet !== walletAddress) {
+    setPendingWallet({ api: walletApi, address: walletAddress!, key: walletName || '' })
+    return
+  }
+
+  await supabase
+    .from('users')
+    .update({ wallet_address: walletAddress })
+    .eq('email', user.email)
+}
 
   const handleConfirmSwitch = async () => {
     if (!pendingWallet) return
