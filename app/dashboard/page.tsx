@@ -29,12 +29,10 @@ export default function Dashboard() {
   const [connecting, setConnecting] = useState(false)
   const [contracts, setContracts] = useState<any[]>([])
   const [loadingContracts, setLoadingContracts] = useState(false)
-  const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string} | null>(null)  // เพิ่มตรงนี้
+  const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string} | null>(null)
   const router = useRouter()
   const { walletApi, walletAddress, walletName, setWallet } = useWalletContext()
 
-
-   
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -69,60 +67,57 @@ export default function Dashboard() {
 
   const loadContracts = async () => {
     setLoadingContracts(true)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('contracts')
       .select('*, contract_recipients(*)')
       .eq('owner_address', walletAddress)
       .order('created_at', { ascending: false })
-    
     setContracts(data || [])
     setLoadingContracts(false)
   }
 
-const handleConnect = async (walletKey: string) => {
-  try {
-    setConnecting(true)
-    const { api, address } = await connectWallet(walletKey)
+  const handleConnect = async (walletKey: string) => {
+    try {
+      setConnecting(true)
+      const { api, address } = await connectWallet(walletKey)
 
-    // เช็ค wallet เดิมใน Supabase
-    const { data: userData } = await supabase
-      .from('users')
-      .select('wallet_address')
-      .eq('email', user.email)
-      .single()
+      const { data: userData } = await supabase
+        .from('users')
+        .select('wallet_address')
+        .eq('email', user.email)
+        .single()
 
-    const existingWallet = userData?.wallet_address
-    console.log('existing:', existingWallet)
-    console.log('new:', address)
-    console.log('match:', existingWallet === address)
+      const existingWallet = userData?.wallet_address
 
-    if (existingWallet && existingWallet !== address) {
-  // มี wallet เดิม และต่างกัน → เตือน
-  const confirmed = window.confirm(
-    `⚠️ You previously used wallet:\n${existingWallet.slice(0, 20)}...\n\n` +
-    `New wallet:\n${address.slice(0, 20)}...\n\n` +
-    `If you switch, you will not see contracts from your old wallet.\nProceed?`
-  )
-  if (!confirmed) {
-    setConnecting(false)
-    return
+      if (existingWallet && existingWallet !== address) {
+        setPendingWallet({ api, address, key: walletKey })
+        setConnecting(false)
+        return
+      }
+
+      await supabase
+        .from('users')
+        .update({ wallet_address: address })
+        .eq('email', user.email)
+
+      setWallet(api, address, walletKey)
+    } catch (e) {
+      console.error(e)
+      alert('Failed to connect wallet')
+    } finally {
+      setConnecting(false)
+    }
   }
-}
 
-    // Save wallet_address ลง Supabase
+  const handleConfirmSwitch = async () => {
+    if (!pendingWallet) return
     await supabase
       .from('users')
-      .update({ wallet_address: address })
+      .update({ wallet_address: pendingWallet.address })
       .eq('email', user.email)
-
-    setWallet(api, address, walletKey)
-  } catch (e) {
-    console.error(e)
-    alert('Failed to connect wallet')
-  } finally {
-    setConnecting(false)
+    setWallet(pendingWallet.api, pendingWallet.address, pendingWallet.key)
+    setPendingWallet(null)
   }
-}
 
   if (!user) return (
     <main className="min-h-screen bg-[#0a0f1e] flex items-center justify-center">
@@ -132,6 +127,36 @@ const handleConnect = async (walletKey: string) => {
 
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
+
+      {/* Modal เตือนเปลี่ยน wallet */}
+      {pendingWallet && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-2xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold mb-2">Switch Wallet?</h2>
+            <p className="text-white/50 text-sm mb-4">You previously used:</p>
+            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
+              {pendingWallet.address.slice(0, 30)}...
+            </div>
+            <p className="text-white/50 text-sm mb-6">
+              If you switch, you will not see contracts from your old wallet.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingWallet(null)}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-sm transition">
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmSwitch}
+                className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition">
+                Switch Wallet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="border-b border-white/10 px-6 py-4 flex justify-between items-center">
         <span className="text-xl font-bold">ADA LastBlock</span>
         <div className="flex items-center gap-4">
@@ -149,7 +174,6 @@ const handleConnect = async (walletKey: string) => {
 
       <div className="max-w-4xl mx-auto px-6 py-12">
 
-        {/* Wallet Connect */}
         {!walletAddress ? (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-10 text-center mb-8">
             <div className="text-4xl mb-4">👛</div>
@@ -192,7 +216,6 @@ const handleConnect = async (walletKey: string) => {
           </div>
         )}
 
-        {/* Contracts */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">My Contracts</h1>
           {walletAddress && (
@@ -254,7 +277,6 @@ const handleConnect = async (walletKey: string) => {
                     </div>
                   </div>
 
-                  {/* Recipients */}
                   {c.contract_recipients?.length > 0 && (
                     <div className="mb-4">
                       <div className="text-white/40 text-xs uppercase tracking-widest mb-2">Recipients</div>
@@ -271,7 +293,6 @@ const handleConnect = async (walletKey: string) => {
                     </div>
                   )}
 
-                  {/* Actions */}
                   {c.status === 'active' && (
                     <div className="flex gap-3 mt-4">
                       <button className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-2 rounded-xl text-sm font-medium transition">
