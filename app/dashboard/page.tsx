@@ -40,6 +40,10 @@ export default function Dashboard() {
   const [checkinTxCbor, setCheckinTxCbor] = useState<string | null>(null)
   const [checkinNewDeadlineSlot, setCheckinNewDeadlineSlot] = useState<string | null>(null)
 
+  // Cancel states
+  const [cancelContract, setCancelContract] = useState<any>(null)
+  const [cancelLoading, setCancelLoading] = useState(false)
+
   const router = useRouter()
   const { walletApi, walletAddress, walletName, setWallet } = useWalletContext()
 
@@ -249,6 +253,55 @@ export default function Dashboard() {
     }
   }
 
+  const handleCancelConfirm = async () => {
+    if (!cancelContract || !walletApi) return
+    setCancelLoading(true)
+    try {
+      const res = await fetch('https://alb-deploy-production.up.railway.app/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerAddress: walletAddress,
+          txHash: cancelContract.tx_hash,
+          outputIndex: 0,
+        }),
+      })
+
+      const { txCbor, error } = await res.json()
+      if (error) throw new Error(error)
+
+      const signedTx = await walletApi.signTx(txCbor, true)
+
+      const submitRes = await fetch('https://alb-deploy-production.up.railway.app/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
+      })
+
+      const { txHash, error: submitError } = await submitRes.json()
+      if (submitError) throw new Error(submitError)
+
+      await supabase
+        .from('contracts')
+        .update({ status: 'cancelled', tx_hash: txHash })
+        .eq('id', cancelContract.id)
+
+      setCancelContract(null)
+      await loadContracts()
+      alert(`✅ Cancelled! TxHash: ${txHash}`)
+
+    } catch (e: any) {
+      console.error(e)
+      if (e.message?.includes('no account') || e.message?.includes('locked')) {
+        alert('Wallet is locked. Please unlock your wallet extension and try again.')
+      } else {
+        alert(`Cancel failed: ${e.message}`)
+      }
+    } finally {
+      setCancelLoading(false)
+    }
+  }
+
   const intervals = [1, 2, 3, 6, 12, 24, 36, 60]
 
   if (!user) return (
@@ -287,6 +340,43 @@ export default function Dashboard() {
                 onClick={handleConfirmSwitch}
                 className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition">
                 Switch Wallet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Modal */}
+      {cancelContract && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-2xl mb-4">🚫</div>
+            <h2 className="text-xl font-semibold mb-2">Cancel Contract?</h2>
+            <p className="text-white/50 text-sm mb-6">
+              This will return your ADA back to your wallet. This action cannot be undone.
+            </p>
+            <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-white/40">Amount</span>
+                <span className="font-bold text-green-400">{cancelContract.total_ada} ADA</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Recipients</span>
+                <span>{cancelContract.contract_recipients?.length} person{cancelContract.contract_recipients?.length > 1 ? 's' : ''}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelContract(null)}
+                disabled={cancelLoading}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-sm transition">
+                Keep Contract
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                disabled={cancelLoading}
+                className="flex-1 bg-red-500 hover:bg-red-400 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition">
+                {cancelLoading ? 'Processing...' : 'Confirm Cancel'}
               </button>
             </div>
           </div>
@@ -541,7 +631,9 @@ export default function Dashboard() {
                         className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-2 rounded-xl text-sm font-medium transition">
                         Check-in
                       </button>
-                      <button className="bg-white/5 hover:bg-white/10 text-white/60 hover:text-white px-4 py-2 rounded-xl text-sm transition">
+                      <button
+                        onClick={() => setCancelContract(c)}
+                        className="bg-white/5 hover:bg-red-500/20 text-white/60 hover:text-red-400 px-4 py-2 rounded-xl text-sm transition">
                         Cancel
                       </button>
                     </div>
