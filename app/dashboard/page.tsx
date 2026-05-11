@@ -219,7 +219,7 @@ export default function Dashboard() {
         .eq('id', checkinContract.id)
 
       closeCheckin()
-      loadContracts()
+      await loadContracts()  // เพิ่ม await
       alert(`✅ Check-in successful! TxHash: ${txHash}`)
 
     } catch (e: any) {
