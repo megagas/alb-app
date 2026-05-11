@@ -149,7 +149,11 @@ export default function CreateContract() {
 
     } catch (e: any) {
       console.error(e)
-      alert(`Deploy failed: ${e.message}`)
+      if (e.message?.includes('no account') || e.message?.includes('locked')) {
+        alert('Wallet is locked. Please unlock your wallet extension and try again.')
+      } else {
+        alert(`Deploy failed: ${e.message}`)
+      }
     }
   }
 
