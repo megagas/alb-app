@@ -24,6 +24,7 @@ export default function CreateContract() {
   const [intervalYears, setIntervalYears] = useState<number>(0)
   const [intervalMonths, setIntervalMonths] = useState<number>(2)
   const [showCustom, setShowCustom] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [recipients, setRecipients] = useState<Recipient[]>([
     { id: 1, address: '', resolvedAddress: null, resolvedEmail: null, isLooking: false, hasLooked: false, percent: 0 }
   ])
@@ -109,7 +110,6 @@ export default function CreateContract() {
       })
 
       const { txCbor, error, scriptAddress, deadlineSlot, nowSlot } = await res.json()
-      
       if (error) throw new Error(error)
 
       const signedTx = await walletApi.signTx(txCbor, true)
@@ -160,6 +160,56 @@ export default function CreateContract() {
 
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
+
+      {/* Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
+            <div className="text-2xl mb-4">🔒</div>
+            <h2 className="text-xl font-semibold mb-4">Confirm Deploy</h2>
+            <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-white/40">Amount</span>
+                <span className="font-bold">{totalAda} ADA</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Check-in every</span>
+                <span>
+                  {intervalYears > 0 ? `${intervalYears}y ` : ''}
+                  {intervalMonths > 0 ? `${intervalMonths}m` : ''}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Recipients</span>
+                <span>{recipients.length} person{recipients.length > 1 ? 's' : ''}</span>
+              </div>
+              <div className="border-t border-white/10 pt-2 mt-2">
+                {recipients.map((r, i) => (
+                  <div key={r.id} className="flex justify-between text-xs text-white/40 mt-1">
+                    <span className="truncate max-w-[200px]">
+                      {r.resolvedEmail || r.resolvedAddress?.slice(0, 20) || r.address.slice(0, 20)}...
+                    </span>
+                    <span>{r.percent}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-sm transition">
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); handleDeploy() }}
+                className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition">
+                Confirm Deploy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="border-b border-white/10 px-6 py-4 flex justify-between items-center">
         <span className="text-xl font-bold">ADA LastBlock</span>
         <button onClick={() => router.push('/dashboard')} className="text-white/40 hover:text-white text-sm transition">
@@ -391,7 +441,7 @@ export default function CreateContract() {
 
         {/* Deploy button */}
         <button
-          onClick={handleDeploy}
+          onClick={() => setShowConfirm(true)}
           disabled={!canDeploy || !walletAddress}
           className="w-full bg-blue-500 hover:bg-blue-400 disabled:opacity-30 disabled:cursor-not-allowed text-white py-4 rounded-full text-lg font-semibold transition">
           {!walletAddress ? 'Connect wallet first' : 'Deploy Contract'}
