@@ -30,6 +30,14 @@ export default function Dashboard() {
   const [contracts, setContracts] = useState<any[]>([])
   const [loadingContracts, setLoadingContracts] = useState(false)
   const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string} | null>(null)
+
+  // Check-in states
+  const [checkinContract, setCheckinContract] = useState<any>(null)
+  const [checkinStep, setCheckinStep] = useState<'choose' | 'review' | null>(null)
+  const [checkinCustomMonths, setCheckinCustomMonths] = useState<number>(0)
+  const [checkinUseCustom, setCheckinUseCustom] = useState(false)
+  const [checkinLoading, setCheckinLoading] = useState(false)
+
   const router = useRouter()
   const { walletApi, walletAddress, walletName, setWallet } = useWalletContext()
 
@@ -149,6 +157,85 @@ export default function Dashboard() {
     setPendingWallet(null)
   }
 
+  const openCheckin = (contract: any) => {
+    setCheckinContract(contract)
+    setCheckinCustomMonths(contract.checkin_interval_months)
+    setCheckinUseCustom(false)
+    setCheckinStep('choose')
+  }
+
+  const closeCheckin = () => {
+    setCheckinContract(null)
+    setCheckinStep(null)
+    setCheckinUseCustom(false)
+  }
+
+  const getNewDeadline = () => {
+    const months = checkinUseCustom ? checkinCustomMonths : checkinContract?.checkin_interval_months
+    const now = new Date()
+    now.setMonth(now.getMonth() + months)
+    return now
+  }
+
+  const handleCheckinConfirm = async () => {
+    if (!checkinContract || !walletApi) return
+    setCheckinLoading(true)
+    try {
+      const months = checkinUseCustom ? checkinCustomMonths : checkinContract.checkin_interval_months
+
+      const res = await fetch('https://alb-deploy-production.up.railway.app/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerAddress: walletAddress,
+          txHash: checkinContract.tx_hash,
+          outputIndex: 0,
+          newIntervalMonths: months,
+        }),
+      })
+
+      const { txCbor, newDeadlineSlot, error } = await res.json()
+      if (error) throw new Error(error)
+
+      const signedTx = await walletApi.signTx(txCbor, true)
+
+      const submitRes = await fetch('https://alb-deploy-production.up.railway.app/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
+      })
+
+      const { txHash, error: submitError } = await submitRes.json()
+      if (submitError) throw new Error(submitError)
+
+      // Update Supabase
+      await supabase
+        .from('contracts')
+        .update({
+          deadline_slot: newDeadlineSlot,
+          checkin_interval_months: months,
+          tx_hash: txHash,
+        })
+        .eq('id', checkinContract.id)
+
+      closeCheckin()
+      loadContracts()
+      alert(`✅ Check-in successful! TxHash: ${txHash}`)
+
+    } catch (e: any) {
+      console.error(e)
+      if (e.message?.includes('no account') || e.message?.includes('locked')) {
+        alert('Wallet is locked. Please unlock your wallet extension and try again.')
+      } else {
+        alert(`Check-in failed: ${e.message}`)
+      }
+    } finally {
+      setCheckinLoading(false)
+    }
+  }
+
+  const intervals = [1, 2, 3, 6, 12, 24, 36, 60]
+
   if (!user) return (
     <main className="min-h-screen bg-[#0a0f1e] flex items-center justify-center">
       <div className="text-white/40">Loading...</div>
@@ -158,6 +245,7 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
 
+      {/* Switch Wallet Modal */}
       {pendingWallet && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
@@ -186,6 +274,103 @@ export default function Dashboard() {
                 Switch Wallet
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Check-in Modal */}
+      {checkinStep && checkinContract && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
+
+            {checkinStep === 'choose' && (
+              <>
+                <div className="text-2xl mb-4">✅</div>
+                <h2 className="text-xl font-semibold mb-2">Check-in</h2>
+                <p className="text-white/50 text-sm mb-6">
+                  Current interval: <span className="text-white">{checkinContract.checkin_interval_months} months</span>
+                </p>
+                <div className="flex gap-3 mb-4">
+                  <button
+                    onClick={() => { setCheckinUseCustom(false); setCheckinStep('review') }}
+                    className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition">
+                    Same interval ({checkinContract.checkin_interval_months}m)
+                  </button>
+                  <button
+                    onClick={() => setCheckinUseCustom(true)}
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition ${
+                      checkinUseCustom ? 'bg-blue-500 text-white' : 'bg-white/5 hover:bg-white/10 text-white/60'
+                    }`}>
+                    Custom
+                  </button>
+                </div>
+
+                {checkinUseCustom && (
+                  <div className="mb-4">
+                    <div className="grid grid-cols-4 gap-2 mb-2">
+                      {intervals.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setCheckinCustomMonths(m)}
+                          className={`py-2 rounded-xl text-xs font-medium transition ${
+                            checkinCustomMonths === m
+                              ? 'bg-blue-500 text-white'
+                              : 'bg-white/5 text-white/40 hover:bg-white/10'
+                          }`}>
+                          {m < 12 ? `${m}M` : `${m/12}Y`}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setCheckinStep('review')}
+                      className="w-full bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl text-sm font-medium transition mt-2">
+                      Next → Review
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={closeCheckin}
+                  className="w-full bg-white/5 hover:bg-white/10 text-white/60 py-3 rounded-xl text-sm transition">
+                  Cancel
+                </button>
+              </>
+            )}
+
+            {checkinStep === 'review' && (
+              <>
+                <div className="text-2xl mb-4">🔍</div>
+                <h2 className="text-xl font-semibold mb-4">Review Check-in</h2>
+                <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-white/40">Contract</span>
+                    <span className="font-bold">{checkinContract.total_ada} ADA</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/40">New interval</span>
+                    <span>{checkinUseCustom ? checkinCustomMonths : checkinContract.checkin_interval_months} months</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/40">New deadline</span>
+                    <span className="text-green-400">{formatDate(getNewDeadline())}</span>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCheckinStep('choose')}
+                    className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl text-sm transition">
+                    Back
+                  </button>
+                  <button
+                    onClick={handleCheckinConfirm}
+                    disabled={checkinLoading}
+                    className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white py-3 rounded-xl text-sm font-medium transition">
+                    {checkinLoading ? 'Processing...' : 'Confirm Check-in'}
+                  </button>
+                </div>
+              </>
+            )}
+
           </div>
         </div>
       )}
@@ -328,7 +513,9 @@ export default function Dashboard() {
 
                   {c.status === 'active' && (
                     <div className="flex gap-3 mt-4">
-                      <button className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-2 rounded-xl text-sm font-medium transition">
+                      <button
+                        onClick={() => openCheckin(c)}
+                        className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-2 rounded-xl text-sm font-medium transition">
                         Check-in
                       </button>
                       <button className="bg-white/5 hover:bg-white/10 text-white/60 hover:text-white px-4 py-2 rounded-xl text-sm transition">
