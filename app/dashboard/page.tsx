@@ -85,7 +85,7 @@ const handleConnect = async (walletKey: string) => {
     const { data: userData } = await supabase
       .from('users')
       .select('wallet_address')
-      .eq('id', user.id)
+      .eq('email', user.email)
       .single()
 
     const existingWallet = userData?.wallet_address
