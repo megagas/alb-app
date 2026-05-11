@@ -29,9 +29,12 @@ export default function Dashboard() {
   const [connecting, setConnecting] = useState(false)
   const [contracts, setContracts] = useState<any[]>([])
   const [loadingContracts, setLoadingContracts] = useState(false)
+  const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string} | null>(null)  // เพิ่มตรงนี้
   const router = useRouter()
   const { walletApi, walletAddress, walletName, setWallet } = useWalletContext()
 
+
+   
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -94,17 +97,17 @@ const handleConnect = async (walletKey: string) => {
     console.log('match:', existingWallet === address)
 
     if (existingWallet && existingWallet !== address) {
-      // มี wallet เดิม และต่างกัน → เตือน
-      const confirmed = window.confirm(
-  `⚠️ You previously used wallet:\n${existingWallet.slice(0, 20)}...\n\n` +
-  `New wallet:\n${address.slice(0, 20)}...\n\n` +
-  `If you switch, you will not see contracts from your old wallet.\nProceed?`
-)
-      if (!confirmed) {
-        setConnecting(false)
-        return
-      }
-    }
+  // มี wallet เดิม และต่างกัน → เตือน
+  const confirmed = window.confirm(
+    `⚠️ You previously used wallet:\n${existingWallet.slice(0, 20)}...\n\n` +
+    `New wallet:\n${address.slice(0, 20)}...\n\n` +
+    `If you switch, you will not see contracts from your old wallet.\nProceed?`
+  )
+  if (!confirmed) {
+    setConnecting(false)
+    return
+  }
+}
 
     // Save wallet_address ลง Supabase
     await supabase
