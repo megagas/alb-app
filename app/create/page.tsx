@@ -183,16 +183,21 @@ export default function CreateContract() {
                 <span className="text-white/40">Recipients</span>
                 <span>{recipients.length} person{recipients.length > 1 ? 's' : ''}</span>
               </div>
-              <div className="border-t border-white/10 pt-2 mt-2">
-                {recipients.map((r, i) => (
-                  <div key={r.id} className="flex justify-between text-xs text-white/40 mt-1">
-                    <span className="truncate max-w-[200px]">
-                      {r.resolvedEmail || r.resolvedAddress?.slice(0, 20) || r.address.slice(0, 20)}...
+              <div className="border-t border-white/10 pt-2 mt-2 space-y-2">
+              {recipients.map((r) => (
+                <div key={r.id} className="flex justify-between items-center text-xs">
+                  <span className="text-white/40 truncate max-w-[180px]">
+                    {r.resolvedEmail || r.resolvedAddress?.slice(0, 16) || r.address.slice(0, 16)}...
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-white/30">{r.percent}%</span>
+                    <span className="text-blue-400 font-bold">
+                      {((totalAda * r.percent) / 100).toFixed(2)} ADA
                     </span>
-                    <span>{r.percent}%</span>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+            </div>
             </div>
             <div className="flex gap-3">
               <button
