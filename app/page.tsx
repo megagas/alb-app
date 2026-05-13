@@ -284,9 +284,13 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-white/10 py-8 px-6 text-center text-white/30 text-sm">
         <p>© 2026 ADA LastBlock. Built on Cardano.</p>
-        <p className="mt-2">
+        <p className="mt-2 flex items-center justify-center gap-4">
           <a href="mailto:lastblock.app@gmail.com" className="hover:text-white transition">
             lastblock.app@gmail.com
+          </a>
+          <span>·</span>
+          <a href="https://github.com/megagas/alb-app" target="_blank" className="hover:text-white transition">
+            GitHub
           </a>
         </p>
       </footer>
