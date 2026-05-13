@@ -70,7 +70,7 @@ export default function CreateContract() {
       ...r,
       isLooking: false,
       hasLooked: true,
-      resolvedAddress: isEmail ? (data?.wallet_address ? hexToBech32(data.wallet_address) : null) : value,
+      resolvedAddress: isEmail ? (data?.wallet_address ? hexToBech32(data.wallet_address) : null) : (data ? value : null),
       resolvedEmail: isEmail ? value : (data?.email || null),
     } : r))
   }
