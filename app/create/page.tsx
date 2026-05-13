@@ -18,9 +18,6 @@ type Recipient = {
 
 const isPreprod = process.env.NEXT_PUBLIC_NETWORK !== 'mainnet'
 
-// หน่วยเป็น "เดือน" ปกติ แต่ 5min จะใช้ special value
-const TEST_5MIN_VALUE = -1
-
 export default function CreateContract() {
   const router = useRouter()
   const { walletApi, walletAddress } = useWalletContext()
@@ -38,15 +35,6 @@ export default function CreateContract() {
   const allocated = recipients.reduce((sum, r) => sum + r.percent, 0)
   const unallocated = 100 - allocated
   const totalIntervalMonths = isTest5Min ? 0 : (intervalYears * 12 + intervalMonths)
-  // checkinInterval ที่ส่งไป server: 5min = 5*60 seconds ใส่เป็น "months" พิเศษ
-  // server.mjs คูณ 30*24*60*60 ดังนั้นเราส่ง fraction ไม่ได้
-  // แก้โดยส่ง checkinIntervalSeconds แทนเมื่อเป็น test mode
-  const checkinIntervalForServer = isTest5Min ? 0.000347 : totalIntervalMonths
-  // 5min = 300s, 1 month = 2592000s, 300/2592000 = 0.000115... 
-  // ง่ายกว่า: ส่ง seconds โดยตรง และแก้ server รับ seconds แทน months เมื่อ isTest=true
-  // แต่เพื่อไม่แก้ server — ส่ง checkinInterval เป็น seconds หารด้วย (30*24*60*60)
-  // 300 / 2592000 ≈ 0.0001157 → BigInt จะ round เป็น 0n → ใช้ไม่ได้
-  // ✅ วิธีที่ดีที่สุด: เพิ่ม field `checkinIntervalSeconds` ใน server และรับใน deploy endpoint
 
   const intervals = [
     { label: '1M', value: 1 },
@@ -121,7 +109,6 @@ export default function CreateContract() {
           })),
           totalAda,
           checkinInterval: totalIntervalMonths,
-          // ✅ ส่ง seconds โดยตรงเมื่อเป็น test mode — server จะใช้ค่านี้แทน
           ...(isTest5Min && { checkinIntervalSeconds: 300 }),
         }),
       })
@@ -136,7 +123,7 @@ export default function CreateContract() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
       })
-      const { txHash, error: submitError } = await submitRes.json()
+      const { txHash, outputIndex, error: submitError } = await submitRes.json()
       if (submitError) throw new Error(submitError)
 
       const { data: contractData } = await supabase.from('contracts').insert({
@@ -148,6 +135,7 @@ export default function CreateContract() {
         deadline_slot: deadlineSlot,
         last_checkin_slot: nowSlot,
         status: 'active',
+        output_index: outputIndex ?? 0,
       }).select().single()
 
       if (contractData) {
@@ -186,7 +174,6 @@ export default function CreateContract() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
 
-      {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
@@ -259,7 +246,6 @@ export default function CreateContract() {
           </div>
         )}
 
-        {/* Total ADA */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
           <label className="text-sm text-white/60 uppercase tracking-widest mb-3 block">
             Total ADA to lock
@@ -282,7 +268,6 @@ export default function CreateContract() {
           )}
         </div>
 
-        {/* Check-in interval */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
           <label className="text-sm text-white/60 uppercase tracking-widest mb-3 block">
             Check-in interval
@@ -315,7 +300,6 @@ export default function CreateContract() {
               Custom
             </button>
 
-            {/* ✅ ปุ่ม 5min — แสดงเฉพาะ preprod */}
             {isPreprod && (
               <button
                 onClick={() => { setIsTest5Min(true); setShowCustom(false) }}
@@ -358,7 +342,6 @@ export default function CreateContract() {
           </p>
         </div>
 
-        {/* Pool */}
         <div className={`rounded-2xl p-6 mb-6 border ${
           unallocated === 0
             ? 'bg-green-500/10 border-green-500/20'
@@ -388,7 +371,6 @@ export default function CreateContract() {
           </div>
         </div>
 
-        {/* Recipients */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-6">
           <label className="text-sm text-white/60 uppercase tracking-widest mb-4 block">
             Recipients
@@ -483,7 +465,6 @@ export default function CreateContract() {
           )}
         </div>
 
-        {/* Deploy button */}
         <button
           onClick={() => setShowConfirm(true)}
           disabled={!canDeploy || !walletAddress}
