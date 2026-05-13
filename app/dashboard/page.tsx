@@ -507,7 +507,13 @@ export default function Dashboard() {
       <nav className="border-b border-white/10 px-6 py-4 flex justify-between items-center">
         <span className="text-xl font-bold">ADA LastBlock</span>
         <div className="flex items-center gap-4">
-          <span className="text-white/40 text-sm">{user.email}</span>
+          <div className="flex items-center gap-2">
+            <img 
+              src={`https://api.dicebear.com/7.x/big-smile/svg?seed=${user.email}`}
+              className="w-8 h-8 rounded-full"
+            />
+            <span className="text-white/40 text-sm">{user.email}</span>
+          </div>
           <button
             onClick={async () => {
               await supabase.auth.signOut()
