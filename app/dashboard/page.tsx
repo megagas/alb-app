@@ -605,6 +605,7 @@ export default function Dashboard() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           c.status === 'active' ? 'bg-green-500/20 text-green-400' :
                           c.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                          c.status === 'paid' ? 'bg-blue-500/20 text-blue-400' :
                           'bg-white/10 text-white/40'
                         }`}>
                           {c.status}
