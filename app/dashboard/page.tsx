@@ -351,9 +351,9 @@ export default function Dashboard() {
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
               {pendingWallet.newAddress ? `${pendingWallet.newAddress.slice(0, 30)}...` : 'Loading...'}
             </div>
-            <p className="text-white/50 text-sm mb-2">New wallet:</p>
+          <p className="text-white/50 text-sm mb-2">New wallet:</p>
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
-              {walletAddress ? `${walletAddress.slice(0, 30)}...` : 'Loading...'}
+              {pendingWallet.newAddress ? `${pendingWallet.newAddress.slice(0, 30)}...` : 'Loading...'}
             </div>
             <p className="text-white/50 text-sm mb-6">
               If you switch, you will not see contracts from your old wallet.
