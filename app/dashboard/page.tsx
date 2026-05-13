@@ -614,9 +614,11 @@ export default function Dashboard() {
                       <div className="text-2xl font-bold">{c.total_ada} ADA</div>
                     </div>
                     <div className="text-right">
+                      {c.status === 'active' && (
                       <div className={`text-sm font-medium ${isUrgent ? 'text-red-400' : isWarning ? 'text-orange-400' : 'text-white/60'}`}>
                         {days > 0 ? `${days} days left` : 'Expired'}
                       </div>
+                    )}
                       <div className="text-white/30 text-xs mt-1">
                         Deadline: {formatDate(deadline)}
                       </div>
