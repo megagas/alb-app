@@ -253,54 +253,65 @@ export default function Dashboard() {
     }
   }
 
-  const handleCancelConfirm = async () => {
-    if (!cancelContract || !walletApi) return
-    setCancelLoading(true)
+const handleCancelConfirm = async () => {
+  if (!cancelContract || !walletApi) return
+  setCancelLoading(true)
+  try {
+    // ✅ ทดสอบ wallet ก่อนทำอะไร
     try {
-      const res = await fetch('https://alb-deploy-production.up.railway.app/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ownerAddress: walletAddress,
-          txHash: cancelContract.tx_hash,
-          outputIndex: 0,
-        }),
-      })
-
-      const { txCbor, error } = await res.json()
-      if (error) throw new Error(error)
-
-      const signedTx = await walletApi.signTx(txCbor, true)
-
-      const submitRes = await fetch('https://alb-deploy-production.up.railway.app/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
-      })
-
-      const { txHash, error: submitError } = await submitRes.json()
-      if (submitError) throw new Error(submitError)
-
-      await supabase
-        .from('contracts')
-        .update({ status: 'cancelled', tx_hash: txHash })
-        .eq('id', cancelContract.id)
-
+      await walletApi.getUsedAddresses()
+    } catch {
       setCancelContract(null)
-      await loadContracts()
-      alert(`✅ Cancelled! TxHash: ${txHash}`)
-
-    } catch (e: any) {
-      console.error(e)
-      if (e.message?.includes('no account') || e.message?.includes('locked')) {
-        alert('Wallet is locked. Please unlock your wallet extension and try again.')
-      } else {
-        alert(`Cancel failed: ${e.message}`)
-      }
-    } finally {
-      setCancelLoading(false)
+      alert('⚠️ Wallet session expired. Please reconnect your wallet and try again.')
+      return
     }
+
+    const res = await fetch('https://alb-deploy-production.up.railway.app/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ownerAddress: walletAddress,
+        txHash: cancelContract.tx_hash,
+        outputIndex: 0,
+      }),
+    })
+
+    const { txCbor, error } = await res.json()
+    if (error) throw new Error(error)
+
+    const signedTx = await walletApi.signTx(txCbor, true)
+
+    const submitRes = await fetch('https://alb-deploy-production.up.railway.app/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ txCbor, witnessSet: signedTx, ownerAddress: walletAddress }),
+    })
+
+    const { txHash, error: submitError } = await submitRes.json()
+    if (submitError) throw new Error(submitError)
+
+    await supabase
+      .from('contracts')
+      .update({ status: 'cancelled', tx_hash: txHash })
+      .eq('id', cancelContract.id)
+
+    setCancelContract(null)
+    await loadContracts()
+    alert(`✅ Cancelled! TxHash: ${txHash}`)
+
+  } catch (e: any) {
+    console.error(e)
+    if (e.message?.includes('no account') || e.message?.includes('locked') || e.message?.includes('origin')) {
+      alert('⚠️ Wallet session expired. Please reconnect your wallet and try again.')
+    } else {
+      alert(`Cancel failed: ${e.message}`)
+    }
+  } finally {
+    setCancelLoading(false)
   }
+}
+
+  
 
   const intervals = [1, 2, 3, 6, 12, 24, 36, 60]
 
