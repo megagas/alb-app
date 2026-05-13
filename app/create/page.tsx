@@ -48,8 +48,19 @@ export default function CreateContract() {
 
   const lookupRecipient = async (id: number, value: string) => {
     if (!value) return
-    setRecipients(prev => prev.map(r => r.id === id ? { ...r, isLooking: true } : r))
+    
     const isEmail = value.includes('@')
+    const isAddress = value.startsWith('addr')
+    
+    if (!isEmail && !isAddress) {
+      setRecipients(prev => prev.map(r => r.id === id ? {
+        ...r, isLooking: false, hasLooked: true,
+        resolvedAddress: null, resolvedEmail: null,
+      } : r))
+      return
+    }
+    
+    setRecipients(prev => prev.map(r => r.id === id ? { ...r, isLooking: true } : r))
     const { data } = await supabase
       .from('users')
       .select('email, wallet_address, name')
