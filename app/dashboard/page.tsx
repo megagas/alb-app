@@ -135,6 +135,7 @@ export default function Dashboard() {
   }
 
   const checkAndSaveWallet = async () => {
+    if (!walletAddress) return
     const { data: userData } = await supabase
       .from('users')
       .select('wallet_address')
@@ -334,8 +335,8 @@ export default function Dashboard() {
             <div className="text-2xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold mb-2">Switch Wallet?</h2>
             <p className="text-white/50 text-sm mb-2">Previously used:</p>
-            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-3 break-all">
-              {pendingWallet.address.slice(0, 30)}...
+            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
+              {walletAddress ? `${walletAddress.slice(0, 30)}...` : 'Loading...'}
             </div>
             <p className="text-white/50 text-sm mb-2">New wallet:</p>
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
@@ -343,6 +344,7 @@ export default function Dashboard() {
             </div>
             <p className="text-white/50 text-sm mb-6">
               If you switch, you will not see contracts from your old wallet.
+              To go back, cancel and reconnect your previous wallet.
             </p>
             <div className="flex gap-3">
               <button
