@@ -36,7 +36,6 @@ export default function Dashboard() {
   const [loadingContracts, setLoadingContracts] = useState(false)
   const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string, newAddress?: string} | null>(null)
 
-  // Check-in states
   const [checkinContract, setCheckinContract] = useState<any>(null)
   const [checkinStep, setCheckinStep] = useState<'choose' | 'review' | null>(null)
   const [checkinCustomMonths, setCheckinCustomMonths] = useState<number>(0)
@@ -45,7 +44,6 @@ export default function Dashboard() {
   const [checkinTxCbor, setCheckinTxCbor] = useState<string | null>(null)
   const [checkinNewDeadlineSlot, setCheckinNewDeadlineSlot] = useState<string | null>(null)
 
-  // Cancel states
   const [cancelContract, setCancelContract] = useState<any>(null)
   const [cancelLoading, setCancelLoading] = useState(false)
 
@@ -106,7 +104,6 @@ export default function Dashboard() {
       setConnecting(true)
       const { api, address } = await connectWallet(walletKey)
 
-      // เช็คว่า wallet นี้ถูกใช้โดย email อื่นไหม
       const { data: otherUser } = await supabase
         .from('users')
         .select('email')
@@ -161,7 +158,8 @@ export default function Dashboard() {
       setPendingWallet({ 
         api: walletApi, 
         address: existingWallet,
-        key: walletName || '' 
+        key: walletName || '',
+        newAddress: walletAddress,
       })
       return
     }
@@ -174,11 +172,12 @@ export default function Dashboard() {
 
   const handleConfirmSwitch = async () => {
     if (!pendingWallet) return
+    const newAddr = pendingWallet.newAddress || walletAddress!
     await supabase
       .from('users')
-      .update({ wallet_address: walletAddress })
+      .update({ wallet_address: newAddr })
       .eq('email', user.email)
-    setWallet(pendingWallet.api, walletAddress!, pendingWallet.key)
+    setWallet(pendingWallet.api, newAddr, pendingWallet.key)
     setPendingWallet(null)
   }
 
@@ -276,7 +275,6 @@ export default function Dashboard() {
     if (!cancelContract || !walletApi) return
     setCancelLoading(true)
     try {
-      // ✅ ทดสอบ wallet ก่อนทำอะไร
       try {
         await walletApi.getUsedAddresses()
       } catch {
@@ -341,17 +339,16 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
 
-      {/* Switch Wallet Modal */}
       {pendingWallet && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
             <div className="text-2xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold mb-2">Switch Wallet?</h2>
             <p className="text-white/50 text-sm mb-2">Previously used:</p>
-            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
-              {pendingWallet.newAddress ? `${pendingWallet.newAddress.slice(0, 30)}...` : 'Loading...'}
+            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-3 break-all">
+              {pendingWallet.address.slice(0, 30)}...
             </div>
-          <p className="text-white/50 text-sm mb-2">New wallet:</p>
+            <p className="text-white/50 text-sm mb-2">New wallet:</p>
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
               {pendingWallet.newAddress ? `${pendingWallet.newAddress.slice(0, 30)}...` : 'Loading...'}
             </div>
@@ -375,7 +372,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Cancel Modal */}
       {cancelContract && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
@@ -412,7 +408,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Check-in Modal */}
       {checkinStep && checkinContract && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
@@ -636,10 +631,10 @@ export default function Dashboard() {
                     </div>
                     <div className="text-right">
                       {c.status === 'active' && (
-                      <div className={`text-sm font-medium ${isUrgent ? 'text-red-400' : isWarning ? 'text-orange-400' : 'text-white/60'}`}>
-                        {days > 0 ? `${days} days left` : 'Expired'}
-                      </div>
-                    )}
+                        <div className={`text-sm font-medium ${isUrgent ? 'text-red-400' : isWarning ? 'text-orange-400' : 'text-white/60'}`}>
+                          {days > 0 ? `${days} days left` : 'Expired'}
+                        </div>
+                      )}
                       <div className="text-white/30 text-xs mt-1">
                         Deadline: {formatDate(deadline)}
                       </div>
@@ -677,7 +672,6 @@ export default function Dashboard() {
                     </div>
                   )}
 
-                  {/* ✅ Tx hash — คลิกเปิด Cardanoscan */}
                   <a
                     href={`${explorerBase}/${c.tx_hash}`}
                     target="_blank"
