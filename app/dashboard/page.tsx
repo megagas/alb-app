@@ -106,6 +106,19 @@ export default function Dashboard() {
       setConnecting(true)
       const { api, address } = await connectWallet(walletKey)
 
+      // เช็คว่า wallet นี้ถูกใช้โดย email อื่นไหม
+      const { data: otherUser } = await supabase
+        .from('users')
+        .select('email')
+        .eq('wallet_address', address)
+        .single()
+
+      if (otherUser && otherUser.email !== user.email) {
+        alert('This wallet is already linked to another account.')
+        setConnecting(false)
+        return
+      }
+
       const { data: userData } = await supabase
         .from('users')
         .select('wallet_address')
