@@ -16,6 +16,11 @@ type Recipient = {
   percent: number
 }
 
+const isPreprod = process.env.NEXT_PUBLIC_NETWORK !== 'mainnet'
+
+// หน่วยเป็น "เดือน" ปกติ แต่ 5min จะใช้ special value
+const TEST_5MIN_VALUE = -1
+
 export default function CreateContract() {
   const router = useRouter()
   const { walletApi, walletAddress } = useWalletContext()
@@ -24,6 +29,7 @@ export default function CreateContract() {
   const [intervalYears, setIntervalYears] = useState<number>(0)
   const [intervalMonths, setIntervalMonths] = useState<number>(2)
   const [showCustom, setShowCustom] = useState(false)
+  const [isTest5Min, setIsTest5Min] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [recipients, setRecipients] = useState<Recipient[]>([
     { id: 1, address: '', resolvedAddress: null, resolvedEmail: null, isLooking: false, hasLooked: false, percent: 0 }
@@ -31,7 +37,16 @@ export default function CreateContract() {
 
   const allocated = recipients.reduce((sum, r) => sum + r.percent, 0)
   const unallocated = 100 - allocated
-  const totalIntervalMonths = intervalYears * 12 + intervalMonths
+  const totalIntervalMonths = isTest5Min ? 0 : (intervalYears * 12 + intervalMonths)
+  // checkinInterval ที่ส่งไป server: 5min = 5*60 seconds ใส่เป็น "months" พิเศษ
+  // server.mjs คูณ 30*24*60*60 ดังนั้นเราส่ง fraction ไม่ได้
+  // แก้โดยส่ง checkinIntervalSeconds แทนเมื่อเป็น test mode
+  const checkinIntervalForServer = isTest5Min ? 0.000347 : totalIntervalMonths
+  // 5min = 300s, 1 month = 2592000s, 300/2592000 = 0.000115... 
+  // ง่ายกว่า: ส่ง seconds โดยตรง และแก้ server รับ seconds แทน months เมื่อ isTest=true
+  // แต่เพื่อไม่แก้ server — ส่ง checkinInterval เป็น seconds หารด้วย (30*24*60*60)
+  // 300 / 2592000 ≈ 0.0001157 → BigInt จะ round เป็น 0n → ใช้ไม่ได้
+  // ✅ วิธีที่ดีที่สุด: เพิ่ม field `checkinIntervalSeconds` ใน server และรับใน deploy endpoint
 
   const intervals = [
     { label: '1M', value: 1 },
@@ -106,6 +121,8 @@ export default function CreateContract() {
           })),
           totalAda,
           checkinInterval: totalIntervalMonths,
+          // ✅ ส่ง seconds โดยตรงเมื่อเป็น test mode — server จะใช้ค่านี้แทน
+          ...(isTest5Min && { checkinIntervalSeconds: 300 }),
         }),
       })
 
@@ -127,7 +144,7 @@ export default function CreateContract() {
         script_address: scriptAddress,
         tx_hash: txHash,
         total_ada: totalAda,
-        checkin_interval_months: totalIntervalMonths,
+        checkin_interval_months: isTest5Min ? 0 : totalIntervalMonths,
         deadline_slot: deadlineSlot,
         last_checkin_slot: nowSlot,
         status: 'active',
@@ -159,8 +176,12 @@ export default function CreateContract() {
 
   const canDeploy = unallocated === 0 &&
     totalAda >= 10 &&
-    totalIntervalMonths >= 1 &&
+    (isTest5Min || totalIntervalMonths >= 1) &&
     recipients.every(r => r.resolvedAddress || (!r.address.includes('@') && r.address.length > 10))
+
+  const intervalLabel = isTest5Min
+    ? '5 minutes'
+    : `${intervalYears > 0 ? `${intervalYears} year${intervalYears > 1 ? 's' : ''} ` : ''}${intervalMonths > 0 ? `${intervalMonths} month${intervalMonths > 1 ? 's' : ''}` : ''}` || '—'
 
   return (
     <main className="min-h-screen bg-[#0a0f1e] text-white">
@@ -171,6 +192,11 @@ export default function CreateContract() {
           <div className="bg-[#0a0f1e] border border-white/10 rounded-2xl p-8 max-w-md w-full mx-4">
             <div className="text-2xl mb-4">🔒</div>
             <h2 className="text-xl font-semibold mb-4">Confirm Deploy</h2>
+            {isTest5Min && (
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-2 mb-4 text-yellow-400 text-xs">
+                ⚡ Test mode — deadline in 5 minutes
+              </div>
+            )}
             <div className="bg-white/5 rounded-xl p-4 mb-6 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-white/40">Amount</span>
@@ -178,30 +204,27 @@ export default function CreateContract() {
               </div>
               <div className="flex justify-between">
                 <span className="text-white/40">Check-in every</span>
-                <span>
-                  {intervalYears > 0 ? `${intervalYears}y ` : ''}
-                  {intervalMonths > 0 ? `${intervalMonths}m` : ''}
-                </span>
+                <span>{intervalLabel}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/40">Recipients</span>
                 <span>{recipients.length} person{recipients.length > 1 ? 's' : ''}</span>
               </div>
               <div className="border-t border-white/10 pt-2 mt-2 space-y-2">
-              {recipients.map((r) => (
-                <div key={r.id} className="flex justify-between items-center text-xs">
-                  <span className="text-white/40 truncate max-w-[180px]">
-                    {r.resolvedEmail || r.resolvedAddress?.slice(0, 16) || r.address.slice(0, 16)}...
-                  </span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-white/30">{r.percent}%</span>
-                    <span className="text-blue-400 font-bold">
-                      {((totalAda * r.percent) / 100).toFixed(2)} ADA
+                {recipients.map((r) => (
+                  <div key={r.id} className="flex justify-between items-center text-xs">
+                    <span className="text-white/40 truncate max-w-[180px]">
+                      {r.resolvedEmail || r.resolvedAddress?.slice(0, 16) || r.address.slice(0, 16)}...
                     </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-white/30">{r.percent}%</span>
+                      <span className="text-blue-400 font-bold">
+                        {((totalAda * r.percent) / 100).toFixed(2)} ADA
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             </div>
             <div className="flex gap-3">
               <button
@@ -270,11 +293,12 @@ export default function CreateContract() {
                 key={item.value}
                 onClick={() => {
                   setShowCustom(false)
+                  setIsTest5Min(false)
                   setIntervalYears(Math.floor(item.value / 12))
                   setIntervalMonths(item.value % 12)
                 }}
                 className={`py-3 rounded-xl text-sm font-medium transition ${
-                  !showCustom && totalIntervalMonths === item.value
+                  !showCustom && !isTest5Min && totalIntervalMonths === item.value
                     ? 'bg-blue-500 text-white'
                     : 'bg-white/5 text-white/40 hover:bg-white/10'
                 }`}
@@ -283,13 +307,27 @@ export default function CreateContract() {
               </button>
             ))}
             <button
-              onClick={() => setShowCustom(true)}
+              onClick={() => { setShowCustom(true); setIsTest5Min(false) }}
               className={`py-3 rounded-xl text-sm font-medium transition ${
                 showCustom ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10'
               }`}
             >
               Custom
             </button>
+
+            {/* ✅ ปุ่ม 5min — แสดงเฉพาะ preprod */}
+            {isPreprod && (
+              <button
+                onClick={() => { setIsTest5Min(true); setShowCustom(false) }}
+                className={`col-span-4 py-2 rounded-xl text-xs font-medium transition border ${
+                  isTest5Min
+                    ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-400'
+                    : 'bg-white/5 border-white/10 text-white/20 hover:text-yellow-400 hover:border-yellow-500/30'
+                }`}
+              >
+                ⚡ 5 min (testnet only)
+              </button>
+            )}
           </div>
 
           {showCustom && (
@@ -316,10 +354,7 @@ export default function CreateContract() {
           )}
 
           <p className="text-white/30 text-xs mt-3">
-            Check-in every{' '}
-            {intervalYears > 0 ? `${intervalYears} year${intervalYears > 1 ? 's' : ''} ` : ''}
-            {intervalMonths > 0 ? `${intervalMonths} month${intervalMonths > 1 ? 's' : ''}` : ''}
-            {totalIntervalMonths === 0 ? '—' : ''}
+            Check-in every {intervalLabel}
           </p>
         </div>
 
