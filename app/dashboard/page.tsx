@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [connecting, setConnecting] = useState(false)
   const [contracts, setContracts] = useState<any[]>([])
   const [loadingContracts, setLoadingContracts] = useState(false)
-  const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string} | null>(null)
+  const [pendingWallet, setPendingWallet] = useState<{api: any, address: string, key: string, newAddress?: string} | null>(null)
 
   // Check-in states
   const [checkinContract, setCheckinContract] = useState<any>(null)
@@ -128,7 +128,7 @@ export default function Dashboard() {
       const existingWallet = userData?.wallet_address
 
       if (existingWallet && existingWallet !== address) {
-        setPendingWallet({ api, address: existingWallet, key: walletKey })
+        setPendingWallet({ api, address: existingWallet, key: walletKey, newAddress: address })
         setConnecting(false)
         return
       }
@@ -348,8 +348,8 @@ export default function Dashboard() {
             <div className="text-2xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold mb-2">Switch Wallet?</h2>
             <p className="text-white/50 text-sm mb-2">Previously used:</p>
-            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-3 break-all">
-              {pendingWallet.address.slice(0, 30)}...
+            <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
+              {pendingWallet.newAddress ? `${pendingWallet.newAddress.slice(0, 30)}...` : 'Loading...'}
             </div>
             <p className="text-white/50 text-sm mb-2">New wallet:</p>
             <div className="bg-white/5 rounded-xl px-4 py-2 text-xs font-mono text-white/40 mb-4 break-all">
