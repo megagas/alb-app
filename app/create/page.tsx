@@ -63,7 +63,7 @@ export default function CreateContract() {
     setRecipients(prev => prev.map(r => r.id === id ? { ...r, isLooking: true } : r))
     const { data } = await supabase
       .from('users')
-      .select('email, wallet_address, name')
+      .select('email, wallet_address')
       .eq(isEmail ? 'email' : 'wallet_address', value)
       .single()
     setRecipients(prev => prev.map(r => r.id === id ? {
